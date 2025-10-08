@@ -190,7 +190,9 @@ class FootballTeamBot:
             message_thread_id=topic_id,
             question=question,
             options=options,
-            is_anonymous=False
+            is_anonymous=False,
+            allows_multiple_answers=False,
+            type="regular",
         )
         logger.debug(f"Poll created: {poll_msg}")
         if chat_id not in self.active_match_polls:
@@ -199,7 +201,7 @@ class FootballTeamBot:
         if topic_id not in self.active_match_polls[chat_id]:
             self.active_match_polls[chat_id][topic_id] = {} 
         
-        self.active_match_polls[chat_id][topic_id][poll_msg.poll.id] = MatchPoll(poll_msg.poll.id, datetime.datetime.now()) 
+        self.active_match_polls[chat_id][topic_id][poll_msg.poll.id] = MatchPoll(poll_msg.poll.id, now) 
         self.chat_polls[poll_msg.poll.id] = chat_id
 
         logger.debug(f"Active polls updated: {self.active_match_polls}")
