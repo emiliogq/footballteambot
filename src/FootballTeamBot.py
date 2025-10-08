@@ -13,6 +13,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, PollA
 from MatchPoll import MatchPoll, available_options
 import json
 import os
+import tzlocal
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
@@ -51,7 +52,8 @@ class FootballTeamBot:
 
         # Daily report job
         logger.info("Scheduling daily report job")
-        self.app.job_queue.run_repeating(self.daily_report, interval=60*60*24, first=60*60*12)
+        local_tz = tzlocal.get_localzone()
+        self.app.job_queue.run_repeating(self.daily_report, interval=60*60*24, first=datetime.time(hour=21, minute=0, tzinfo=local_tz))
 
         logger.info("Starting bot")
         self.app.run_polling()
@@ -182,6 +184,7 @@ class FootballTeamBot:
 
     async def make_match_poll(self, context: ContextTypes.DEFAULT_TYPE, chat_id, topic_id, question, options):
         logger.debug(f"Creating poll in chat {chat_id}, topic {topic_id} with question '{question}' and options {options}")
+        now = datetime.datetime.now(tz=tzlocal.get_localzone())
         poll_msg = await context.bot.send_poll(
             chat_id=chat_id,
             message_thread_id=topic_id,
@@ -279,7 +282,7 @@ class FootballTeamBot:
             return
 
         option = list(poll.options)[option_id]
-        timestamp = datetime.datetime.now()
+        timestamp = datetime.datetime.now(tz=tzlocal.get_localzone())
         poll.add_vote(user_id, option, timestamp)
 
 
