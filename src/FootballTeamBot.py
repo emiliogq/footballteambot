@@ -8,7 +8,7 @@ import re
 
 from telegram import Update, User, Chat
 from telegram.error import BadRequest
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, PollAnswerHandler, CallbackContext, MessageHandler, MessageReactionHandler, filters
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, PollHandler, PollAnswerHandler, CallbackContext, MessageHandler, MessageReactionHandler, filters
 
 from MatchPoll import MatchPoll, available_options
 import json
@@ -42,6 +42,7 @@ class FootballTeamBot:
         self.app.add_handler(MessageHandler(filters.ALL, self.register_member), group=2)
         self.app.add_handler(MessageReactionHandler(self.register_member), group=3)
         self.app.add_handler(PollAnswerHandler(self.handle_vote))
+        self.app.add_handler(PollHandler(self.handle_poll_update))
 
         # Telegram API does not link polls to chats, so we need to keep track of them ourselves
         self.chat_polls = {}
@@ -115,9 +116,6 @@ class FootballTeamBot:
     async def stop_match_poll(self, context: ContextTypes.DEFAULT_TYPE, chat_id, topic_id, poll_id):
         logger.debug(f"Stopping poll {poll_id} in chat {chat_id}, topic {topic_id}")
         await context.bot.stop_poll(chat_id=chat_id, message_thread_id=topic_id, poll_id=poll_id)
-        del self.active_match_polls[chat_id][topic_id][poll_id]
-        logger.debug(f"Poll {poll_id} stopped and removed from active polls")
-        await context.bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text="Convocatòria tancada")
 
     async def register_member(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.debug(f"Received update {update}")
@@ -248,6 +246,24 @@ class FootballTeamBot:
         if chat_id in self.active_match_polls and thread_id in self.active_match_polls[chat_id]:
             poll = self.active_match_polls[chat_id][thread_id]
             await self.stop_match_poll(context, chat_id, thread_id, poll.poll_id)
+
+    async def handle_poll_update(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        logger.debug(f"Handling poll update {update}")
+        poll = update.poll
+        if not poll:
+            return
+        
+        poll_id = poll.id
+        chat_id, topic_id = self.get_chat_id_from_poll_id(poll_id)
+        logger.debug(f"Poll update for poll {poll_id} in chat {chat_id}, topic {topic_id}")
+
+        if not chat_id or not topic_id:
+            logger.debug("Poll not found in active polls, new poll received")
+        elif poll.is_closed:
+            logger.info(f"Poll {poll_id} is closed")
+            del self.active_match_polls[chat_id][topic_id][poll_id]
+            logger.debug(f"Poll {poll_id} stopped and removed from active polls")
+            await context.bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text="Convocatoria cerrada")
     
     async def handle_vote(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.debug(f"Handling update {update}")
