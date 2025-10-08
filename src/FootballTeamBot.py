@@ -6,7 +6,7 @@ import logging
 import datetime
 import re
 
-from telegram import Update
+from telegram import Update, User, Chat
 from telegram.error import BadRequest
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, PollAnswerHandler, CallbackContext, MessageHandler, MessageReactionHandler, filters
 
@@ -119,7 +119,9 @@ class FootballTeamBot:
         msg = update.message
         user = msg.from_user
         chat = msg.chat
+        await self.register_member_logic(user, chat)
 
+    async def register_member_logic(self, user: User, chat: Chat):
         logger.debug(f"Registering member {user} in chat {chat}")
         chat_id_str = str(chat.id)
         if chat_id_str not in self.chat_members:
@@ -242,6 +244,9 @@ class FootballTeamBot:
 
         if not update.poll_answer:
             return
+
+        await self.register_member_logic(update.poll_answer.user, update.effective_chat)
+
         poll_answer = update.poll_answer
         user_id = poll_answer.user.id
         poll_id = poll_answer.poll_id
