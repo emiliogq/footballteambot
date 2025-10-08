@@ -42,6 +42,8 @@ class FootballTeamBot:
         self.app.add_handler(MessageReactionHandler(self.register_member), group=3)
         self.app.add_handler(PollAnswerHandler(self.handle_vote))
 
+        # Telegram API does not link polls to chats, so we need to keep track of them ourselves
+        self.chat_polls = {}
         self.pending_topics = {}
         self.active_match_polls = self.load_active_match_polls("active_match_polls.json")
         self.chat_members = self.load_chat_members("chat_members.json")
@@ -86,6 +88,7 @@ class FootballTeamBot:
                             for user_id, vote_data in poll_data['votes'].items():
                                 poll.add_vote(vote_data['user_id'], vote_data['option'], datetime.datetime.fromisoformat(vote_data['timestamp']))
                             active_match_polls[chat_id][topic_id][poll_id] = poll
+                            self.chat_polls[poll.poll_id] = chat_id
 
         logger.debug(f"Loaded active match polls: {active_match_polls}")
         return active_match_polls
@@ -119,11 +122,11 @@ class FootballTeamBot:
         msg = update.message
         user = msg.from_user
         chat = msg.chat
-        await self.register_member_logic(user, chat)
+        await self.register_member_logic(user, chat.id)
 
-    async def register_member_logic(self, user: User, chat: Chat):
-        logger.debug(f"Registering member {user} in chat {chat}")
-        chat_id_str = str(chat.id)
+    async def register_member_logic(self, user: User, chat_id: int):
+        logger.debug(f"Registering member {user} in chat {chat_id}")
+        chat_id_str = str(chat_id)
         if chat_id_str not in self.chat_members:
             self.chat_members[chat_id_str] = {}
         user_exists = str(user.id) in self.chat_members[chat_id_str]
@@ -194,6 +197,7 @@ class FootballTeamBot:
             self.active_match_polls[chat_id][topic_id] = {} 
         
         self.active_match_polls[chat_id][topic_id][poll_msg.poll.id] = MatchPoll(poll_msg.poll.id, datetime.datetime.now()) 
+        self.chat_polls[poll_msg.poll.id] = chat_id
 
         logger.debug(f"Active polls updated: {self.active_match_polls}")
 
@@ -246,9 +250,7 @@ class FootballTeamBot:
 
         if not update.poll_answer:
             return
-
-        await self.register_member_logic(update.poll_answer.user, update.effective_chat)
-
+        
         poll_answer = update.poll_answer
         user_id = poll_answer.user.id
         poll_id = poll_answer.poll_id
@@ -259,6 +261,8 @@ class FootballTeamBot:
         if not chat_id or not topic_id:
             return
         
+        await self.register_member_logic(update.poll_answer.user, chat_id)
+
         if len(option_ids) != 1:
             logger.debug("Multiple options selected, ignoring")
             return
