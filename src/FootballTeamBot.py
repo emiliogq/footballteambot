@@ -42,8 +42,8 @@ class FootballTeamBot:
         self.app.add_handler(MessageReactionHandler(self.register_member), group=3)
         self.app.add_handler(PollAnswerHandler(self.handle_vote))
 
-        self.active_match_polls = self.load_active_match_polls("active_match_polls.json")
         self.pending_topics = {}
+        self.active_match_polls = self.load_active_match_polls("active_match_polls.json")
         self.chat_members = self.load_chat_members("chat_members.json")
         logger.debug(f"Loaded chat members: {self.chat_members}")
 
