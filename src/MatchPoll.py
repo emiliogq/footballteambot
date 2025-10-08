@@ -1,6 +1,8 @@
 import datetime
 import logging
 
+import tzlocal
+
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 logger = logging.getLogger("footballteambot.MatchPoll")
@@ -14,7 +16,7 @@ class MatchPoll:
         self.created_at = created_at
         self.options = available_options
         self.votes = {}
-        self.deadline = created_at + datetime.timedelta(hours=24*4)
+        self.deadline = created_at + datetime.timedelta(days=4)
 
     def add_vote(self, user_id, option, timestamp):
         logger.debug(f"Adding vote: user_id={user_id}, option={option}, timestamp={timestamp}")
@@ -23,8 +25,8 @@ class MatchPoll:
             logger.debug(f"Vote added: {self.votes[(str(user_id))]}")
 
     def is_active(self):
-        return datetime.datetime.now() < self.deadline
-    
+        return datetime.datetime.now(tz=tzlocal.get_localzone()) < self.deadline
+
     def available_players(self):
         return [vote.user_id for vote in self.votes.values() if vote.is_available()]
 
@@ -46,7 +48,6 @@ class MatchPoll:
         logger.debug(f"Voted user IDs: {voted_user_ids}")
         for user_id, user_info in members.items():
             logger.debug(f"Checking member: user_id={user_id}, user_info={user_info}")
-            logger.debug(f"Type of user_id: {type(user_id)}, Type of voted_user_ids elements: {type(next(iter(voted_user_ids)))}, user_id in voted_user_ids: {user_id in voted_user_ids}, str(user_id) in voted_user_ids: {str(user_id) in voted_user_ids}")
             if str(user_id) not in voted_user_ids:
                 user_name = members[str(user_id)]['username']
                 logger.debug(f"Member: {members[str(user_id)]}")
