@@ -197,6 +197,8 @@ class FootballTeamBot:
 
         logger.debug(f"Active polls updated: {self.active_match_polls}")
 
+        self.save_active_match_polls("active_match_polls.json")
+
         await context.bot.pin_chat_message(chat_id=chat_id, message_id=poll_msg.message_id)
 
     async def handle_topic_created(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
