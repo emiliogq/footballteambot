@@ -298,8 +298,18 @@ class FootballTeamBot:
         option_id = option_ids[0]
         if option_id < 0 or option_id >= len(poll.options):
             return
-
+        
         option = list(poll.options)[option_id]
+
+        if poll.has_voted(user_id):
+            logger.debug(f"User {user_id} has already voted, updating vote")
+            username = self.chat_members[str(chat_id)][str(user_id)]['username']
+            fullname = self.chat_members[str(chat_id)][str(user_id)]['full_name']
+            user_mention = f'<a href="https://t.me/{username}">@{username}</a>' if username is not None else f'<a href="tg://user?id={user_id}">{fullname}</a>'
+            vote_option_before = poll.votes[str(user_id)].option
+            vote_option_after = option
+            await context.bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=f"ALERTA: El usuario {user_mention} ha cambiado su voto de {vote_option_before} a {vote_option_after}", parse_mode="HTML", disable_web_page_preview=True)
+
         timestamp = datetime.datetime.now(tz=tzlocal.get_localzone())
         poll.add_vote(user_id, option, timestamp)
 

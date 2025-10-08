@@ -20,10 +20,17 @@ class MatchPoll:
 
     def add_vote(self, user_id, option, timestamp):
         logger.debug(f"Adding vote: user_id={user_id}, option={option}, timestamp={timestamp}")
-        if user_id not in self.votes:
+        if not self.has_voted(user_id):
             self.votes[str(user_id)] = Vote(user_id, option, timestamp)
             logger.debug(f"Vote added: {self.votes[(str(user_id))]}")
+        else:
+            logger.debug(f"Updating vote for user_id={user_id} from {self.votes[str(user_id)]} to option={option}, timestamp={timestamp}")
+            self.votes[str(user_id)].option = option
+            self.votes[str(user_id)].timestamp = timestamp
 
+    def has_voted(self, user_id):
+        return str(user_id) in self.votes
+    
     def is_active(self):
         return datetime.datetime.now(tz=tzlocal.get_localzone()) < self.deadline
 
