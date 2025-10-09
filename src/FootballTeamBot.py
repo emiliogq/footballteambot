@@ -312,5 +312,7 @@ class FootballTeamBot:
 
         timestamp = datetime.datetime.now(tz=tzlocal.get_localzone())
         poll.add_vote(user_id, option, timestamp)
+        self.active_match_polls[chat_id][topic_id][poll_id] = poll
+        self.save_active_match_polls("active_match_polls.json")
 
 
