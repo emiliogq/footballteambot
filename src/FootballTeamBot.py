@@ -284,7 +284,7 @@ class FootballTeamBot:
         
         await self.register_member_logic(update.poll_answer.user, chat_id)
 
-        if len(option_ids) != 1:
+        if len(option_ids) > 1:
             logger.debug("Multiple options selected, ignoring")
             return
 
@@ -295,24 +295,30 @@ class FootballTeamBot:
             await self.stop_match_poll(context, chat_id, topic_id, poll.poll_id)
             return
 
-        option_id = option_ids[0]
-        if option_id < 0 or option_id >= len(poll.options):
-            return
-        
-        option = list(poll.options)[option_id]
+        if len(option_ids) == 0:
+            logger.debug("Vote retracted, deleting vote")
+            # We need to delete vote to know if user has voted before
+            poll.delete_vote(user_id)
+        elif len(option_ids) == 1:
+            option_id = option_ids[0]
+            if option_id < 0 or option_id >= len(poll.options):
+                logger.debug(f"Invalid option id {option_id}, ignoring")
+                return
+            
+            option = list(poll.options)[option_id]
 
-        if poll.has_voted(user_id):
-            logger.debug(f"User {user_id} has already voted, updating vote")
-            username = self.chat_members[str(chat_id)][str(user_id)]['username']
-            fullname = self.chat_members[str(chat_id)][str(user_id)]['full_name']
-            user_mention = f'<a href="https://t.me/{username}">@{username}</a>' if username is not None else f'<a href="tg://user?id={user_id}">{fullname}</a>'
-            vote_option_before = poll.votes[str(user_id)].option
-            vote_option_after = option
-            await context.bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=f"ALERTA: El usuario {user_mention} ha cambiado su voto de {vote_option_before} a {vote_option_after}", parse_mode="HTML", disable_web_page_preview=True)
+            if poll.has_voted(user_id):
+                logger.debug(f"User {user_id} has already voted, updating vote")
+                username = self.chat_members[str(chat_id)][str(user_id)]['username']
+                fullname = self.chat_members[str(chat_id)][str(user_id)]['full_name']
+                user_mention = f'<a href="https://t.me/{username}">@{username}</a>' if username is not None else f'<a href="tg://user?id={user_id}">{fullname}</a>'
+                vote_option_before = poll.previous_votes[str(user_id)].option
+                vote_option_after = option
+                await context.bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=f"ALERTA: El usuario {user_mention} ha cambiado su voto de {vote_option_before} a {vote_option_after}", parse_mode="HTML", disable_web_page_preview=True)
 
-        timestamp = datetime.datetime.now(tz=tzlocal.get_localzone())
-        poll.add_vote(user_id, option, timestamp)
-        self.active_match_polls[chat_id][topic_id][poll_id] = poll
-        self.save_active_match_polls("active_match_polls.json")
+            timestamp = datetime.datetime.now(tz=tzlocal.get_localzone())
+            poll.add_vote(user_id, option, timestamp)
+            self.active_match_polls[chat_id][topic_id][poll_id] = poll
+            self.save_active_match_polls("active_match_polls.json")
 
 

@@ -16,6 +16,7 @@ class MatchPoll:
         self.created_at = created_at
         self.options = available_options
         self.votes = {}
+        self.previous_votes = {}
         self.deadline = created_at + datetime.timedelta(days=4)
 
     def add_vote(self, user_id, option, timestamp):
@@ -28,8 +29,12 @@ class MatchPoll:
             self.votes[str(user_id)].option = option
             self.votes[str(user_id)].timestamp = timestamp
 
+    def delete_vote(self, user_id):
+        logger.debug(f"Deleting vote {self.votes[str(user_id)]} for user_id={user_id}")
+        self.previous_votes[str(user_id)] = self.votes.pop(str(user_id), None)
+        
     def has_voted(self, user_id):
-        return str(user_id) in self.votes
+        return str(user_id) in self.previous_votes
     
     def is_active(self):
         return datetime.datetime.now(tz=tzlocal.get_localzone()) < self.deadline
