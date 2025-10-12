@@ -1,6 +1,6 @@
 FROM python
 
-RUN pip install python-telegram-bot python-telegram-bot[job-queue]
+RUN pip install python-telegram-bot python-telegram-bot[job-queue] gitpython
 
 # Set the timezone environment variable
 ENV TZ=Europe/Madrid

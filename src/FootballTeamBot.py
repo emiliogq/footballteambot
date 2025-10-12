@@ -6,6 +6,8 @@ import logging
 import datetime
 import re
 
+from git import Repo
+
 from telegram import Update, User, Chat
 from telegram.error import BadRequest
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, PollHandler, PollAnswerHandler, CallbackContext, MessageHandler, MessageReactionHandler, filters
@@ -31,8 +33,9 @@ class FootballTeamBot:
     def __init__(self, token = "TOKEN") -> None:
         super().__init__()
         
-        self.app = ApplicationBuilder().token(token).build()
-
+        self.version = self.get_git_version(".")
+        logger.info(f"Bot version: {self.version}")
+        self.app = ApplicationBuilder().token(token).post_init(self.set_description).build()
         logger.info("Initializing bot")
         logger.info("Setting up handlers")
         
@@ -64,6 +67,36 @@ class FootballTeamBot:
         self.app.stop()
         logger.info("Shutting down bot")
         self.app.shutdown()
+
+    async def set_description(self, app:ApplicationBuilder):
+        bot: Bot = app.bot
+        bot_name = (await bot.get_me()).first_name
+        bot_description = await bot.get_my_description()
+        logger.debug(f"Current bot description: {bot_description}")
+        description = f"{bot_name}. Version {self.version}. Owner @emiliogq"
+        logger.debug(f"Setting bot description to: {description}")
+        await app.bot.set_my_description(description)
+
+
+    def get_git_version(self, repo_path):
+        try:
+            repo = Repo(repo_path)
+            desc = repo.git.describe('--tags', '--long', '--always')
+            logger.debug(f"Git describe output: {desc}")
+            # Parse parts
+            parts = desc.split('-')
+            if len(parts) == 3:
+                tag, commits_ahead, commit = parts
+                commit = commit.lstrip('g')
+                if commits_ahead == "0":
+                    return f"{tag} ({commit})"
+                else:
+                    return f"{tag}+{commits_ahead} ({commit})"
+            return desc
+        except Exception as e:
+            logger.error(f"Error getting git version: {e}")
+            return "unknown"
+
 
     def load_chat_members(self, filename):
         chat_members = {}
