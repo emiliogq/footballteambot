@@ -8,7 +8,7 @@ import re
 
 from git import Repo
 
-from telegram import Update, User, Chat
+from telegram import Update, User, Chat, Bot, BotCommand
 from telegram.error import BadRequest
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, PollHandler, PollAnswerHandler, CallbackContext, MessageHandler, MessageReactionHandler, filters
 
@@ -16,6 +16,7 @@ from MatchPoll import MatchPoll, available_options
 import json
 import os
 import tzlocal
+from Location import Location, parking_difficulty_levels
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
@@ -35,9 +36,14 @@ class FootballTeamBot:
         
         self.version = self.get_git_version(".")
         logger.info(f"Bot version: {self.version}")
-        self.app = ApplicationBuilder().token(token).post_init(self.set_description).build()
+        self.app = ApplicationBuilder().token(token).post_init(self.set_commands).post_init(self.set_description).build()
         logger.info("Initializing bot")
+        
+        self.locations = self.load_locations("locations.json")
         logger.info("Setting up handlers")
+        
+        self.app.add_handler(CommandHandler("newlocation", self.register_location), group=0)
+        self.app.add_handler(CommandHandler("deletelocation", self.delete_location), group=1)
         
         logger.info("Setting up match poll handler")
         self.app.add_handler(MessageHandler(filters.StatusUpdate.FORUM_TOPIC_CREATED, self.handle_topic_created), group=0)
@@ -97,7 +103,114 @@ class FootballTeamBot:
             logger.error(f"Error getting git version: {e}")
             return "unknown"
 
+    async def set_commands(self, app):
+        logger.debug("Setting bot commands")
+        await app.bot.set_my_commands([
+            BotCommand('newlocation', 'Creates an available location for any match of your team'),
+            BotCommand('deletelocation', 'Delete an available location')
+        ])
 
+        await app.bot.set_my_commands([
+            BotCommand('nuevaubicacion', 'Añade una ubicación a la lista de sedes'),
+            BotCommand('eliminaubicacion', 'Elimina una ubicacion de la lista de sedes disponibles')
+        ], language_code='es')
+
+        await app.bot.set_my_commands([
+            BotCommand('novaubicacio', 'Afegeix una ubicació a la llista de seus disponibles'),
+            BotCommand('eliminaubicacio', 'Elimina una ubicacion de la llista de seus disponibles')
+        ], language_code='ca')
+
+        logger.debug("Bot commands set")
+
+    async def register_location(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        msg = update.message
+        user = msg.from_user
+        chat = msg.chat
+        text = msg.text
+
+        logger.debug(f"Registering location from user {user} in chat {chat}")
+
+        if not user or user.is_bot:
+            await msg.reply_text("Los bots no pueden registrar ubicaciones.")
+            return
+
+        if not chat or chat.type not in [Chat.GROUP, Chat.SUPERGROUP]:
+            await msg.reply_text("Este comando solo puede usarse en grupos.")
+            return
+
+        items = text.split()
+        if (len(items) != 4):
+            await msg.reply_text("Uso: /newlocation <nombre> <google_maps_link> <dificultad_de_aparcamiento (fácil o difícil)>")
+            return
+
+        location_name = items[1]
+        map_link = items[2]
+        parking_difficulty = items[3]
+
+        match = re.match(r"https://www\.google\.com/maps/place/(-?\d+\.\d+),(-?\d+\.\d+)", map_link)
+        if not match:
+            await msg.reply_text("El enlace de Google Maps no es válido.")
+            return
+
+        self.locations[map_link] = Location(location_name, map_link, parking_difficulty if parking_difficulty in parking_difficulty_levels else None)
+        self.save_locations("locations.json")
+
+
+    async def delete_location(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        msg = update.message
+        user = msg.from_user
+        chat = msg.chat
+        text = msg.text
+
+        logger.debug(f"Deleting location from user {user} in chat {chat}")
+
+        if not user or user.is_bot:
+            await msg.reply_text("Los bots no pueden eliminar ubicaciones.")
+            return
+
+        if not chat or chat.type not in [Chat.GROUP, Chat.SUPERGROUP]:
+            await msg.reply_text("Este comando solo puede usarse en grupos.")
+            return
+
+        items = text.split()
+        if (len(items) != 2):
+            await msg.reply_text("Uso: /deletelocation <nombre>")
+            return
+
+        location_name = items[1]
+
+        for map_link, location in self.locations.items():
+            if location.name == location_name:
+                break
+        else:
+            await msg.reply_text(f"No se encontró la ubicación <a href='{map_link}'>{location_name}</a>.", parse_mode="HTML", disable_web_page_preview=True)
+            return
+
+        del self.locations[map_link]
+        self.save_locations("locations.json")
+        await msg.reply_text(f"Ubicación <a href='{map_link}'>{location_name}</a> eliminada.", parse_mode="HTML", disable_web_page_preview=True)
+
+    def load_locations(self, filename):
+        locations = {}
+        if os.path.exists(filename):
+            with open(filename, "r") as f:
+                data = json.load(f)
+                for map_link, location_data in data.items():
+                    location = Location(location_data['name'], map_link, location_data['parking_difficulty'] if 'parking_difficulty' in location_data else None)
+                    locations[map_link] = location
+        logger.debug(f"Loaded locations: {locations}")
+        return locations
+    
+    def save_locations(self, filename):
+        data = {}
+        for map_link, location in self.locations.items():
+            data[map_link] = {
+                "name": location.name,
+            }
+        logger.debug(f"Saving locations: {data}")
+        with open(filename, "w") as f:
+            json.dump(data, f)
+        logger.debug(f"Saved locations to {filename}")
     def load_chat_members(self, filename):
         chat_members = {}
         if os.path.exists(filename):
