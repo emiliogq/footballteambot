@@ -10,9 +10,10 @@ from git import Repo
 
 from telegram import Update, User, Chat
 from telegram.error import BadRequest
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, PollHandler, PollAnswerHandler, CallbackContext, MessageHandler, MessageReactionHandler, filters
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, ChatMemberHandler, PollHandler, PollAnswerHandler, CallbackContext, MessageHandler, MessageReactionHandler, filters
 
 from MatchPoll import MatchPoll, available_options
+from Team import Team
 import json
 import os
 import tzlocal
@@ -37,7 +38,11 @@ class FootballTeamBot:
         logger.info(f"Bot version: {self.version}")
         self.app = ApplicationBuilder().token(token).post_init(self.set_description).build()
         logger.info("Initializing bot")
+        
+        self.teams = self.load_teams("teams.json")
         logger.info("Setting up handlers")
+
+        self.app.add_handler(ChatMemberHandler(self.handle_chat_membership_update, ChatMemberHandler.MY_CHAT_MEMBER), group=0)
         
         logger.info("Setting up match poll handler")
         self.app.add_handler(MessageHandler(filters.StatusUpdate.FORUM_TOPIC_CREATED, self.handle_topic_created), group=0)
@@ -97,6 +102,69 @@ class FootballTeamBot:
             logger.error(f"Error getting git version: {e}")
             return "unknown"
 
+
+
+    async def handle_chat_membership_update(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        logger.debug(f"Handling chat membership update: {update}")
+        chat_member_update = update.my_chat_member
+        if not chat_member_update:
+            return
+        
+        new_status = chat_member_update.new_chat_member.status
+        old_status = chat_member_update.old_chat_member.status
+        user = chat_member_update.new_chat_member.user
+        chat = chat_member_update.chat
+
+        logger.debug(f"Chat membership update for user {user} in chat {chat}: {old_status} -> {new_status}")
+
+        if new_status in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR] and old_status in [ChatMemberStatus.LEFT, ChatMemberStatus.BANNED]:
+            # Bot was added to a group
+            logger.info(f"Bot was added to group {chat.title} ({chat.id}) by user {user.full_name} ({user.id})")
+            if str(chat.id) not in self.teams:
+                self.register_team(chat.id, chat.title)
+
+        elif new_status in [ChatMemberStatus.LEFT, ChatMemberStatus.BANNED] and old_status in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR]:
+            # Bot was removed from a group
+            logger.info(f"Bot was removed from group {chat.title} ({chat.id}) by user {user.full_name} ({user.id})")
+            if str(chat.id) in self.teams:
+                self.delete_team(chat.id)
+
+    def register_team(self, chat_id, chat_title):
+        logger.info(f"Registering team for chat {chat_title} ({chat_id})")
+        team = Team(chat_title)
+        self.teams[str(chat_id)] = team
+        self.save_teams("teams.json")
+        logger.info(f"Registered team for chat {chat_id}")
+
+    def save_teams(self, filename):
+        data = {}
+        for team_id, team in self.teams.items():
+            data[team_id] = {
+                "name": team.name,
+            }
+        logger.debug(f"Saving teams: {data}")
+        with open(filename, "w") as f:
+            json.dump(data, f)
+        logger.debug(f"Saved teams to {filename}")
+
+    
+    def delete_team(self, team_id):
+        if str(team_id) in self.teams:
+            team_name = self.teams[str(team_id)].name
+            del self.teams[str(team_id)]
+            self.save_teams("teams.json")
+            logger.info(f"Deleted team '{team_name}' for chat {team_id}")
+
+    def load_teams(self, filename):
+        teams = {}
+        if os.path.exists(filename):
+            with open(filename, "r") as f:
+                data = json.load(f)
+                for team_id, team_data in data.items():
+                    team = Team(team_data['name'])
+                    teams[str(team_id)] = team
+        logger.debug(f"Loaded teams: {teams}")
+        return teams
 
     def load_chat_members(self, filename):
         chat_members = {}
