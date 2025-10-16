@@ -18,6 +18,7 @@ class MatchPoll:
         self.votes = {}
         self.previous_votes = {}
         self.deadline = created_at + datetime.timedelta(days=4)
+        logger.debug(f"Created MatchPoll with id={self.poll_id}, options={self.options}, created_at={self.created_at}, deadline={self.deadline}")
 
     def add_vote(self, user_id, option, timestamp):
         logger.debug(f"Adding vote: user_id={user_id}, option={option}, timestamp={timestamp}")
@@ -41,6 +42,7 @@ class MatchPoll:
         return vote == self.previous_votes[str(vote.user_id)]
 
     def is_active(self):
+        logger.debug(f"Checking if poll {self.poll_id} is active. Current time: {datetime.datetime.now(tz=tzlocal.get_localzone())}, Deadline: {self.deadline}")
         return datetime.datetime.now(tz=tzlocal.get_localzone()) < self.deadline
 
     def available_players(self):
