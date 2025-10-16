@@ -216,7 +216,7 @@ class FootballTeamBot:
 
     async def stop_match_poll(self, context: ContextTypes.DEFAULT_TYPE, chat_id, topic_id, poll_id):
         logger.debug(f"Stopping poll {poll_id} in chat {chat_id}, topic {topic_id}")
-        await context.bot.stop_poll(chat_id=chat_id, message_thread_id=topic_id, poll_id=poll_id)
+        await context.bot.stop_poll(chat_id=chat_id, message_id=poll_id)
 
     async def register_member(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.debug(f"Received update {update}")
