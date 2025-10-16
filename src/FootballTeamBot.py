@@ -264,6 +264,7 @@ class FootballTeamBot:
                 raise
     
     async def daily_report(self, context: ContextTypes.DEFAULT_TYPE):
+        polls_to_remove = []
         for chat_id, topics in self.active_match_polls.items():
             logger.debug(f"Processing daily report for chat {chat_id}. Active topics: {topics.keys()}")
             for topic_id, polls in topics.items():
@@ -273,13 +274,21 @@ class FootballTeamBot:
                     logger.debug(f"Processing poll {poll}")
                     if not poll.is_active():
                         logger.info(f"Poll {poll.poll_id} in chat {chat_id}, topic {topic_id} is not active anymore, stopping it")
-                        await self.stop_match_poll(context, chat_id, topic_id, poll.poll_id)
+                        try:
+                            await self.stop_match_poll(context, chat_id, topic_id, poll.poll_id)
+                        except Exception as e:
+                            logger.error(f"Error stopping poll {poll.poll_id}: {e}")
+                        polls_to_remove.append((chat_id, topic_id, poll.poll_id))
                     else:
                         logger.info(f"Generating daily report for poll {poll.poll_id} in chat {chat_id}, topic {topic_id}")
                         members = self.chat_members[str(chat_id)]
                         logger.debug(f"Members: {members}")
                         report = poll.report(members)
                         await context.bot.send_message(chat_id=chat_id, message_thread_id=topic_id, text=report, parse_mode="HTML", disable_web_page_preview=True)
+        for chat_id, topic_id, poll_id in polls_to_remove:
+            if chat_id in self.active_match_polls and topic_id in self.active_match_polls[chat_id] and poll_id in self.active_match_polls[chat_id][topic_id]:
+                del self.active_match_polls[chat_id][topic_id][poll_id]
+                logger.debug(f"Closed poll {poll_id} removed from active polls")
 
     async def make_match_poll(self, context: ContextTypes.DEFAULT_TYPE, chat_id, topic_id, question, options):
         logger.debug(f"Creating poll in chat {chat_id}, topic {topic_id} with question '{question}' and options {options}")
