@@ -408,7 +408,7 @@ class FootballTeamBot:
             
             option = list(poll.options)[option_id]
 
-            if poll.has_voted(user_id):
+            if poll.has_voted(user_id) and not poll.is_same_vote(user_id, option):
                 logger.debug(f"User {user_id} has already voted, updating vote")
                 username = self.chat_members[str(chat_id)][str(user_id)]['username']
                 fullname = self.chat_members[str(chat_id)][str(user_id)]['full_name']

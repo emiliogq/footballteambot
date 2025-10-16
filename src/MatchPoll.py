@@ -36,6 +36,10 @@ class MatchPoll:
     def has_voted(self, user_id):
         return str(user_id) in self.previous_votes
     
+    def is_same_vote(self, user_id, option):
+        vote = Vote(user_id, option, datetime.datetime.now(tz=tzlocal.get_localzone()))
+        return vote == self.previous_votes[str(vote.user_id)]
+
     def is_active(self):
         return datetime.datetime.now(tz=tzlocal.get_localzone()) < self.deadline
 
